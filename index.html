@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IoT Packet Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!--APP-->
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <rect x="1" y="1" width="28" height="28" rx="7" fill="var(--ink)"/>
+        <circle cx="8" cy="21" r="3" fill="var(--wifi)"/>
+        <rect x="17" y="6" width="7" height="7" rx="1.5" fill="var(--surface)"/>
+        <path d="M10.5 18.5 L17.5 11.5" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="2 3"/>
+      </svg>
+      <div><strong>IoT Packet Lab</strong><span>Smart Home · sensor → gateway → server · CoAP/UDP/IPv4</span></div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button id="tab-network" class="tab is-active" role="tab" aria-selected="true" data-view="network">Network</button>
+      <button id="tab-packets" class="tab" role="tab" aria-selected="false" data-view="packets">Packet Manager <span id="tab-count" class="count">0</span></button>
+    </nav>
+    <div class="sim-controls">
+      <button id="btn-run" class="btn">Pause</button>
+      <button id="btn-step" class="btn" title="Pause and advance 100 ms of simulated time">Step</button>
+      <button id="btn-reset" class="btn" title="Restart the run on the same network">Reset</button>
+      <label class="field-inline" for="sel-speed">Speed <select id="sel-speed"></select></label>
+      <div class="seg" id="seg-profile" role="group" aria-label="Load profile">
+        <button data-v="normal" class="is-on">Normal</button>
+        <button data-v="busy" class="busy">Busy</button>
+        <button data-v="stress" class="stress">Stress</button>
+      </div>
+      <button id="btn-layout" class="btn" title="Rebuild the original Smart Home network">Restore Smart Home</button>
+      <div class="clock"><span>SIM TIME</span><output id="clock">00:00.000</output></div>
+    </div>
+  </header>
+
+  <main>
+    <section id="view-network" class="view view-network">
+      <aside class="panel left">
+        <section class="block">
+          <h2>Add device</h2>
+          <select id="add-type" aria-label="Device type"></select>
+          <div id="add-conn-row" class="row between">
+            <span class="lbl">Connect by</span>
+            <div class="seg" id="seg-conn" role="group" aria-label="Connection">
+              <button data-v="wifi" class="is-on">Wi-Fi</button>
+              <button data-v="ethernet">Ethernet</button>
+            </div>
+          </div>
+          <button id="btn-add" class="btn primary wide">Add to network</button>
+          <p class="hint" id="add-hint"></p>
+        </section>
+        <section class="block">
+          <h2>Canvas tool</h2>
+          <div class="seg full" id="seg-tool" role="group" aria-label="Tool">
+            <button data-v="select" class="is-on">Select / move</button>
+            <button data-v="wire">Draw cable</button>
+          </div>
+          <p class="hint" id="tool-hint">Drag devices to move them — Wi-Fi signal changes with distance. Click a link to see its packets. Click a moving packet to inspect it.</p>
+        </section>
+        <section class="block" id="inspector"></section>
+        <section class="block">
+          <h2>Network conditions</h2>
+          <div class="stack" id="settings" style="gap:10px"></div>
+        </section>
+        <section class="block">
+          <h2>Fault &amp; stress tests</h2>
+          <button class="btn" id="f-gw">Fail a gateway for 15 s</button>
+          <button class="btn" id="f-surge">Traffic surge for 10 s</button>
+          <button class="btn" id="f-noise">Interference burst for 10 s</button>
+          <button class="btn primary" id="f-snap">Save run snapshot</button>
+        </section>
+      </aside>
+
+      <div class="stage" id="stage">
+        <canvas id="canvas" aria-label="Network topology with moving packets"></canvas>
+        <div class="legend">
+          <span><i></i>Ethernet</span>
+          <span><i class="wifi"></i>Wi-Fi</span>
+          <span><i class="pkt"></i>Packet (colour = sensor)</span>
+          <span><i class="x"></i>Lost</span>
+        </div>
+        <div class="zoom">
+          <button class="btn" id="z-in" aria-label="Zoom in">+</button>
+          <button class="btn" id="z-out" aria-label="Zoom out">−</button>
+          <button class="btn" id="z-fit" aria-label="Fit network" title="Fit">⤢</button>
+        </div>
+        <div class="toast" id="toast" hidden></div>
+        <section class="drawer" id="drawer" hidden>
+          <header class="drawer-head">
+            <div>
+              <div class="eyebrow" id="dr-kind">Link capture</div>
+              <h3 id="dr-title"></h3>
+              <div class="dr-meta" id="dr-meta"></div>
+            </div>
+            <div class="drawer-actions">
+              <label class="toggle"><input type="checkbox" id="dr-follow" checked> Follow live</label>
+              <button id="dr-pcap" class="btn">Download .pcap</button>
+              <button id="dr-close" class="btn icon" aria-label="Close capture">×</button>
+            </div>
+          </header>
+          <div class="drawer-body">
+            <div id="dr-list"></div>
+            <div id="dr-tree"></div>
+            <div id="dr-hex"></div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="panel right">
+        <section class="block">
+          <h2>Live counters</h2>
+          <div class="counters" id="counters"></div>
+        </section>
+        <section class="block">
+          <h2>Network summary</h2>
+          <dl class="summary" id="summary"></dl>
+          <div class="spark">
+            <div class="row"><span>Received per second</span><b id="sv-del">—</b></div>
+            <canvas id="spark-del" aria-label="Packets received per simulated second, last 60 seconds"></canvas>
+          </div>
+          <div class="spark">
+            <div class="row"><span>Average delay per second</span><b id="sv-delay">—</b></div>
+            <canvas id="spark-delay" aria-label="Average end-to-end delay per simulated second"></canvas>
+          </div>
+        </section>
+        <section class="block">
+          <h2>Server inbox</h2>
+          <ul class="inbox" id="inbox"></ul>
+        </section>
+        <section class="block grow">
+          <h2>Recent events</h2>
+          <div class="chips" id="ev-chips">
+            <button class="chip is-on" data-f="all">All</button>
+            <button class="chip" data-f="drop">Drops</button>
+            <button class="chip" data-f="deliver">Deliveries</button>
+            <button class="chip" data-f="queue">Queue</button>
+            <button class="chip" data-f="wifi">Wi-Fi / DHCP</button>
+            <button class="chip" data-f="fault">Faults</button>
+          </div>
+          <ol class="events" id="events"></ol>
+        </section>
+      </aside>
+    </section>
+
+    <section id="view-packets" class="view view-packets" hidden>
+      <div class="pm-wrap">
+        <div class="pm-head">
+          <div>
+            <h1>Packet Manager</h1>
+            <p id="pm-time"></p>
+          </div>
+          <div class="snap-actions">
+            <button class="btn primary" id="pm-snap">Save snapshot</button>
+            <button class="btn" id="pm-csv">Export packets (.csv)</button>
+            <button class="btn" id="pm-log">Export event log (.txt)</button>
+            <button class="btn" id="pm-json">Export report (.json)</button>
+          </div>
+        </div>
+        <div class="kpis" id="pm-kpis"></div>
+        <div class="pm-main">
+          <div class="card">
+            <div class="card-head">
+              <h2>All packets <small class="hint" id="pm-rows"></small></h2>
+              <div class="filters">
+                <input type="search" id="pm-q" placeholder="Search #id, sensor, IP" aria-label="Search packets">
+                <select id="pm-status" aria-label="Status">
+                  <option value="">All statuses</option>
+                  <option value="travelling">Travelling</option>
+                  <option value="queued">Queued</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="delayed">Delayed</option>
+                  <option value="dropped">Dropped</option>
+                </select>
+                <select id="pm-sensor" aria-label="Sensor"></select>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="data" id="pm-table">
+                <thead><tr><th>No.</th><th>Time (s)</th><th>Sensor</th><th>Source → destination</th><th>Reading</th><th>Bytes</th><th>Hops</th><th>Retries</th><th>Delay (ms)</th><th>Status</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <aside class="card pm-detail" id="pm-detail"></aside>
+        </div>
+        <div class="pm-grid2">
+          <div class="card">
+            <div class="card-head"><h2>Per device</h2></div>
+            <div class="table-scroll">
+              <table class="data" id="pm-devices">
+                <thead><tr><th>Device</th><th>Type</th><th>IP</th><th>MAC</th><th>Link</th><th>Sent</th><th>Recv</th><th>Lost</th><th>Loss</th><th>Avg delay</th><th>Delivery</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="stack" style="gap:14px">
+            <div class="card">
+              <div class="card-head"><h2>Per link</h2><span class="hint">Click a link to open its capture</span></div>
+              <div class="table-scroll">
+                <table class="data" id="pm-links">
+                  <thead><tr><th>Link</th><th>Medium</th><th>Mbit/s</th><th>Frames</th><th>KiB</th><th>Retries</th><th>Lost</th><th>Avg hop</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h2>Why packets were lost</h2></div>
+              <table class="data"><thead><tr><th>Cause</th><th>Packets</th><th>Share</th></tr></thead><tbody id="pm-reasons"></tbody></table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Experiment snapshots</h2><button class="btn" id="pm-snap-clear">Clear</button></div>
+          <div class="table-scroll">
+            <table class="data" id="pm-snaps">
+              <thead><tr><th>#</th><th>Scenario</th><th>Load</th><th>Sensors</th><th>GW up</th><th>Drop prob.</th><th>Noise</th><th>Latency Wi-Fi/eth/up</th><th>Seed</th><th>Sim s</th><th>Sent</th><th>Recv</th><th>Lost</th><th>Loss</th><th>Avg delay</th><th>pkt/s</th><th>Peak Q</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<!--/APP-->
+<script src="js/core.js"></script>
+<script src="js/topology.js"></script>
+<script src="js/connections.js"></script>
+<script src="js/sensors.js"></script>
+<script src="js/protocol.js"></script>
+<script src="js/routing.js"></script>
+<script src="js/logger.js"></script>
+<script src="js/metrics.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/scenarios.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

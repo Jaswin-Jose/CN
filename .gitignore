@@ -1,0 +1,43 @@
+# Build output (regenerate with: python3 build.py)
+dist/
+
+# LaTeX auxiliary files (presentation.pdf itself is kept so everyone can present without LaTeX)
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*.synctex.gz
+*.synctex(busy)
+
+# Files exported from the simulator
+*.pcap
+*.pcap.zip
+iot-packets*.csv
+iot-event-log*.txt
+iot-experiment-report*.json
+
+# Node / Python
+node_modules/
+package-lock.json
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Office lock files
+~$*
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Presentation material stays local
+presentation/
